@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">WeWatch</string>
     <string name="ok">OK</string>
+    <string name="error_message">You must enter a title</string>
 </resources>

@@ -34,26 +34,27 @@ package com.raywenderlich.wewatch.view.activity
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.raywenderlich.wewatch.App
 import com.raywenderlich.wewatch.R
-import com.raywenderlich.wewatch.data.model.Movie
 import com.raywenderlich.wewatch.domain.state.MovieState
-import com.raywenderlich.wewatch.view.MainView
 import com.raywenderlich.wewatch.view.adapter.MovieListAdapter
-import com.raywenderlich.wewatch.view.presenter.MainPresenter
-import io.reactivex.Observable
+import com.raywenderlich.wewatch.view.viewmodel.MainViewModel
+import com.raywenderlich.wewatch.view.viewmodel.factory.BaseViewModelFactory
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
 
-class MainActivity : BaseActivity(), MainView {
+class MainActivity : BaseActivity() {
 
     private val toolbar: Toolbar by lazy { toolbar_toolbar_view as Toolbar }
-    private lateinit var presenter: MainPresenter
+    private lateinit var viewModel: MainViewModel
 
     override fun getToolbarInstance(): Toolbar? = toolbar
 
@@ -61,47 +62,55 @@ class MainActivity : BaseActivity(), MainView {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         moviesRecyclerView.adapter = MovieListAdapter(emptyList())
-        presenter = MainPresenter((application as App).getInteractor())
-        presenter.bind(this)
-        fab.setOnClickListener { goToAddActivity() }
+        initViewModel()
+        initObservers()
+        initClickListeners()
+        initItemTouchHelper()
     }
 
-    override fun onStop() {
-        super.onStop()
-        presenter.unbind()
+    private fun initViewModel() {
+        val factory = BaseViewModelFactory((application as App).getInteractor())
+        viewModel = ViewModelProvider(this, factory).get(MainViewModel::class.java)
+    }
+
+    private fun initObservers() {
+        viewModel.stateLiveData.observe(this, Observer(::render))
+    }
+
+    private fun initClickListeners() {
+        fab.setOnClickListener { goToAddActivity() }
     }
 
     private fun goToAddActivity() = startActivity(Intent(this, AddMovieActivity::class.java))
 
-    override fun deleteMovieIntent(): Observable<Movie> {
-        return Observable.create { emitter ->
-            val helper = ItemTouchHelper(
-                object : ItemTouchHelper.SimpleCallback(
-                    0,
-                    ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
-                ) {
-                    override fun onMove(
-                        recyclerView: RecyclerView,
-                        viewHolder: RecyclerView.ViewHolder,
-                        target: RecyclerView.ViewHolder
-                    ): Boolean {
-                        return false
-                    }
+    private fun initItemTouchHelper() {
+        val helper = ItemTouchHelper(
+            object : ItemTouchHelper.SimpleCallback(
+                0,
+                ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+            ) {
+                override fun onMove(
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    target: RecyclerView.ViewHolder
+                ): Boolean {
+                    return false
+                }
 
-                    override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                        val position = viewHolder.adapterPosition
-                        val movie =
-                            (moviesRecyclerView.adapter as MovieListAdapter).getMoviesAtPosition(
-                                position
-                            )
-                        emitter.onNext(movie)
-                    }
-                })
-            helper.attachToRecyclerView(moviesRecyclerView)
-        }
+                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                    val position = viewHolder.adapterPosition
+                    val movie =
+                        (moviesRecyclerView.adapter as MovieListAdapter).getMoviesAtPosition(
+                            position
+                        )
+                    viewModel.deleteMovieIntent(movie)
+                }
+            })
+        helper.attachToRecyclerView(moviesRecyclerView)
     }
 
     override fun render(state: MovieState) {
+        Log.d(TAG, "MainActivity State: ${state.javaClass.simpleName}")
         when (state) {
             is MovieState.LoadingState -> renderLoadingState()
             is MovieState.DataState -> renderDataState(state)
@@ -125,5 +134,8 @@ class MainActivity : BaseActivity(), MainView {
     private fun renderErrorState(dataState: MovieState.ErrorState) =
         Toast.makeText(this, dataState.data, Toast.LENGTH_SHORT).show()
 
+    private companion object{
+        const val TAG = "MVI_Example"
+    }
 }
 

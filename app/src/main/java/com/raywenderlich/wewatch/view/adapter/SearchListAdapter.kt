@@ -44,10 +44,11 @@ import io.reactivex.Observable
 import io.reactivex.subjects.PublishSubject
 import kotlinx.android.synthetic.main.item_movie_search.view.*
 
-class SearchListAdapter(private var movies: List<Movie>) :
+class SearchListAdapter(
+    private var movies: List<Movie>,
+    private val block: (Movie) -> Unit
+) :
     RecyclerView.Adapter<SearchListAdapter.MovieHolder>() {
-
-    val publishSubject: PublishSubject<Movie> = PublishSubject.create<Movie>()
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MovieHolder {
         val view = LayoutInflater.from(parent.context)
@@ -65,16 +66,12 @@ class SearchListAdapter(private var movies: List<Movie>) :
         notifyDataSetChanged()
     }
 
-    fun getViewClickObservable(): Observable<Movie> {
-        return publishSubject
-    }
-
     inner class MovieHolder(val view: View) : RecyclerView.ViewHolder(view) {
         fun bind(movie: Movie) = with(view) {
             searchTitleTextView.text = movie.title
             searchReleaseDateTextView.text = movie.releaseDate
             view.setOnClickListener {
-                publishSubject.onNext(movie)
+                block.invoke(movie)
             }
             Picasso.get()
                 .load(RetrofitClient.TMDB_IMAGEURL + movie.posterPath)

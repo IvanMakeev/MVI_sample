@@ -49,21 +49,25 @@ dependencies {
     implementation "com.squareup.okhttp3:logging-interceptor:$okhttp3_version"
 
     def supportLibraryVersion = '28.0.0'
-    implementation 'androidx.exifinterface:exifinterface:1.0.0'
     implementation 'androidx.appcompat:appcompat:1.1.0-alpha01'
 
     def constraintLayoutVersion = "2.0.0-alpha2"
     implementation "androidx.constraintlayout:constraintlayout:$constraintLayoutVersion"
 
-    implementation 'androidx.recyclerview:recyclerview:1.1.0-alpha01'
+    implementation 'androidx.recyclerview:recyclerview:1.1.0'
 
     def materialVersion = "1.1.0-alpha02"
     implementation "com.google.android.material:material:$materialVersion"
-    implementation "com.google.android.material:material:$materialVersion"
-
-    implementation 'com.jakewharton.rxbinding3:rxbinding:3.0.0-alpha2'
 
     //Picasso
     def picassoVersion = "2.71828"
     implementation "com.squareup.picasso:picasso:$picassoVersion"
+
+    //View Model
+    def lifecycle_version = '2.0.0-rc01'
+    implementation "androidx.lifecycle:lifecycle-extensions:$lifecycle_version"
+    implementation "androidx.lifecycle:lifecycle-viewmodel:2.2.0"
+
+    implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
+    implementation 'io.reactivex.rxjava2:rxkotlin:2.4.0'
 }

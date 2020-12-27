@@ -34,55 +34,57 @@ package com.raywenderlich.wewatch.view.activity
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.snackbar.Snackbar
 import com.raywenderlich.wewatch.App
 import com.raywenderlich.wewatch.R
 import com.raywenderlich.wewatch.action
-import com.raywenderlich.wewatch.data.model.Movie
 import com.raywenderlich.wewatch.domain.state.MovieState
 import com.raywenderlich.wewatch.snack
-import com.raywenderlich.wewatch.view.SearchView
 import com.raywenderlich.wewatch.view.adapter.SearchListAdapter
-import com.raywenderlich.wewatch.view.presenter.SearchPresenter
-import io.reactivex.Observable
-import io.reactivex.subjects.PublishSubject
+import com.raywenderlich.wewatch.view.viewmodel.SearchViewModel
+import com.raywenderlich.wewatch.view.viewmodel.factory.BaseViewModelFactory
 import kotlinx.android.synthetic.main.activity_search_movie.*
 import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
 
-class SearchMovieActivity : BaseActivity(), SearchView {
+class SearchMovieActivity : BaseActivity() {
 
     private val toolbar: Toolbar by lazy { toolbar_toolbar_view as Toolbar }
-    private lateinit var presenter: SearchPresenter
-    private val publishSubject: PublishSubject<Movie> = PublishSubject.create<Movie>()
+    private lateinit var viewModel: SearchViewModel
 
     override fun getToolbarInstance(): Toolbar? = toolbar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search_movie)
-        searchRecyclerView.adapter = SearchListAdapter(emptyList())
-        presenter = SearchPresenter((application as App).getInteractor())
-        presenter.bind(this)
+        initViewModel()
+        initObservers()
+        displayMoviesIntent()
+
+        searchRecyclerView.adapter = SearchListAdapter(emptyList()) {
+            viewModel.addMovieIntent(it)
+        }
     }
 
-    override fun onStop() {
-        super.onStop()
-        presenter.unbind()
+    private fun initViewModel(){
+        val factory = BaseViewModelFactory((application as App).getInteractor())
+        viewModel = ViewModelProvider(this, factory).get(SearchViewModel::class.java)
     }
 
-    override fun addMovieIntent(): Observable<Movie> =
-        (searchRecyclerView.adapter as SearchListAdapter).getViewClickObservable()
+    private fun initObservers(){
+        viewModel.stateLiveData.observe(this, Observer(::render))
+    }
 
-    override fun confirmIntent(): Observable<Movie> =
-        publishSubject
-
-    override fun displayMoviesIntent(): Observable<String> =
-        Observable.just(intent.extras.getString("title"))
+    private fun displayMoviesIntent() =
+        viewModel.displayMoviesIntent(intent.extras.getString("title", ""))
 
     override fun render(state: MovieState) {
+        Log.d(TAG, "SearchMovieActivity State: ${state.javaClass.simpleName}")
         when (state) {
             is MovieState.LoadingState -> renderLoadingState()
             is MovieState.DataState -> renderDataState(state)
@@ -113,7 +115,7 @@ class SearchMovieActivity : BaseActivity(), SearchView {
     private fun renderConfirmationState(state: MovieState.ConfirmationState) {
         searchLayout.snack("Add ${state.movie.title} to your list?", Snackbar.LENGTH_LONG) {
             action(getString(R.string.ok)) {
-                publishSubject.onNext(state.movie)
+                viewModel.confirmIntent(state.movie)
             }
         }
     }
@@ -122,5 +124,9 @@ class SearchMovieActivity : BaseActivity(), SearchView {
         startActivity(Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         })
+
+    private companion object{
+        const val TAG = "MVI_Example"
+    }
 }
 

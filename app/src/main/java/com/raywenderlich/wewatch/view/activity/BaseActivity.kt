@@ -34,6 +34,7 @@ package com.raywenderlich.wewatch.view.activity
 
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import com.raywenderlich.wewatch.domain.state.MovieState
 
 abstract class BaseActivity : AppCompatActivity() {
 
@@ -45,4 +46,6 @@ abstract class BaseActivity : AppCompatActivity() {
   private fun initView(toolbar: Toolbar) = setSupportActionBar(toolbar)
 
   abstract fun getToolbarInstance(): Toolbar?
+
+  abstract fun render(state: MovieState)
 }

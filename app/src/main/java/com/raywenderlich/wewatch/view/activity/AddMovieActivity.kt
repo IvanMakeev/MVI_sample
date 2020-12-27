@@ -34,8 +34,10 @@ package com.raywenderlich.wewatch.view.activity
 
 import android.content.Intent
 import android.os.Bundle
-import android.view.View
+import android.util.Log
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.snackbar.Snackbar
 import com.raywenderlich.wewatch.App
 import com.raywenderlich.wewatch.R
@@ -43,32 +45,38 @@ import com.raywenderlich.wewatch.action
 import com.raywenderlich.wewatch.data.model.Movie
 import com.raywenderlich.wewatch.domain.state.MovieState
 import com.raywenderlich.wewatch.snack
-import com.raywenderlich.wewatch.view.AddView
-import com.raywenderlich.wewatch.view.presenter.AddPresenter
-import io.reactivex.Observable
-import io.reactivex.subjects.PublishSubject
+import com.raywenderlich.wewatch.view.viewmodel.AddViewModel
+import com.raywenderlich.wewatch.view.viewmodel.factory.BaseViewModelFactory
 import kotlinx.android.synthetic.main.activity_add_movie.*
 import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
 
-class AddMovieActivity : BaseActivity(), AddView {
+class AddMovieActivity : BaseActivity() {
 
     private val toolbar: Toolbar by lazy { toolbar_toolbar_view as Toolbar }
-    private lateinit var presenter: AddPresenter
-    private val publishSubject: PublishSubject<Movie> = PublishSubject.create()
+    private lateinit var viewModel: AddViewModel
 
     override fun getToolbarInstance() = toolbar
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_add_movie)
-        presenter = AddPresenter((application as App).getInteractor())
-        presenter.bind(this)
-        searchButton.setOnClickListener { goToSearchMovieActivity() }
+        initViewModel()
+        initObservers()
+        initClickListeners()
     }
 
-    override fun onStop() {
-        super.onStop()
-        presenter.unbind()
+    private fun initViewModel() {
+        val factory = BaseViewModelFactory((application as App).getInteractor())
+        viewModel = ViewModelProvider(this, factory).get(AddViewModel::class.java)
+    }
+
+    private fun initObservers() {
+        viewModel.stateLiveData.observe(this, Observer(::render))
+    }
+
+    private fun initClickListeners() {
+        searchButton.setOnClickListener { goToSearchMovieActivity() }
+        addMovieButton.setOnClickListener { addMovieClick() }
     }
 
     private fun goToSearchMovieActivity() {
@@ -78,8 +86,36 @@ class AddMovieActivity : BaseActivity(), AddView {
             }
             startActivity(intent)
         } else {
-            showMessage("You must enter a title")
+            viewModel.showMessageIntent(getString(R.string.error_message))
         }
+    }
+
+    private fun addMovieClick() {
+        if (titleEditText.text.toString().isNotBlank()) {
+            viewModel.addMovieIntent(
+                Movie(
+                    title = titleEditText.text.toString(),
+                    releaseDate = yearEditText.text.toString()
+                )
+            )
+        } else {
+            viewModel.showMessageIntent(getString(R.string.error_message))
+        }
+    }
+
+    override fun render(state: MovieState) {
+        Log.d(TAG, "AddMovieActivity State: ${state.javaClass.simpleName}")
+        when (state) {
+            is MovieState.FinishState -> renderFinishState()
+            is MovieState.ErrorState -> showMessage(state.data)
+        }
+    }
+
+    private fun renderFinishState() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        }
+        startActivity(intent)
     }
 
     private fun showMessage(msg: String) {
@@ -89,32 +125,7 @@ class AddMovieActivity : BaseActivity(), AddView {
         }
     }
 
-    fun addMovieClick(view: View) {
-        if (titleEditText.text.toString().isNotBlank()) {
-            publishSubject.onNext(
-                Movie(
-                    title = titleEditText.text.toString(),
-                    releaseDate = yearEditText.text.toString()
-                )
-            )
-        } else {
-            showMessage("You must enter a title")
-        }
-    }
-
-    override fun addMovieIntent(): Observable<Movie> =
-        publishSubject
-
-    override fun render(state: MovieState) {
-        when (state) {
-            is MovieState.FinishState -> renderFinishState()
-        }
-    }
-
-    private fun renderFinishState() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        }
-        startActivity(intent)
+    private companion object {
+        const val TAG = "MVI_Example"
     }
 }
