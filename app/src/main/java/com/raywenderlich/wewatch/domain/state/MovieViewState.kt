@@ -30,15 +30,17 @@
  *
  */
 
-package com.raywenderlich.wewatch.domain.interactor
+package com.raywenderlich.wewatch.domain.state
 
-import com.raywenderlich.wewatch.domain.state.MovieState
 import com.raywenderlich.wewatch.data.model.Movie
-import io.reactivex.Observable
+import com.raywenderlich.wewatch.domain.ViewState
 
-interface Interactor {
-    fun getMovieList(): Observable<MovieState>
-    fun deleteMovie(movie: Movie): Observable<Unit>
-    fun searchMovies(title: String): Observable<MovieState>
-    fun addMovie(movie: Movie): Observable<MovieState>
+sealed class MovieViewState : ViewState {
+    object LoadingState : MovieViewState()
+    data class DataState(val data: List<Movie>) : MovieViewState()
+    data class ErrorState(val data: String) : MovieViewState()
+    data class MessageState(val data: String) : MovieViewState()
+    data class ConfirmationState(val movie: Movie) : MovieViewState()
+    object FinishState : MovieViewState()
+    object EmptyState : MovieViewState()
 }

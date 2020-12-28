@@ -12,5 +12,5 @@ interface Repository {
     fun getMovieList(): Observable<List<Movie>>
     fun deleteMovie(movie: Movie): Observable<Unit>
     fun searchMovies(title: String): Observable<MoviesResponse>
-    fun addMovie(movie: Movie): Single<Long>
+    fun addMovie(movie: Movie): Observable<Long>
 }

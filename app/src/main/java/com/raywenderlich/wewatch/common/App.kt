@@ -30,14 +30,34 @@
  *
  */
 
-package com.raywenderlich.wewatch.domain.state
+package com.raywenderlich.wewatch.common
 
-import com.raywenderlich.wewatch.data.model.Movie
+import android.app.Application
+import com.raywenderlich.wewatch.data.db.MovieDatabase
+import com.raywenderlich.wewatch.data.net.RetrofitClient
+import com.raywenderlich.wewatch.data.repository.MovieRepository
+import com.raywenderlich.wewatch.domain.repository.Repository
 
-sealed class MovieState {
-    object LoadingState : MovieState()
-    data class DataState(val data: List<Movie>) : MovieState()
-    data class ErrorState(val data: String) : MovieState()
-    data class ConfirmationState(val movie: Movie) : MovieState()
-    object FinishState : MovieState()
+lateinit var db: MovieDatabase
+
+class App : Application() {
+
+    private lateinit var repository: Repository
+
+    init {
+        INSTANCE = this
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        db = MovieDatabase.getInstance(this)
+        INSTANCE = this
+        repository = MovieRepository(RetrofitClient(), db.movieDao())
+    }
+
+    fun getRepository(): Repository = repository
+
+    companion object {
+        lateinit var INSTANCE: App
+    }
 }

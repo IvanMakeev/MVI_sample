@@ -1,5 +1,8 @@
 <resources>
     <string name="app_name">WeWatch</string>
     <string name="ok">OK</string>
-    <string name="error_message">You must enter a title</string>
+    <string name="error_message">Something was wrong</string>
+    <string name="title_error_message">You must enter a title</string>
+    <string name="deleted_movie_message">Movie "%1$s" was deleted</string>
+    <string name="didn_find_movies_message">We didn\'t find any movies! Try to enter a new name.</string>
 </resources>

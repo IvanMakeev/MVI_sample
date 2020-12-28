@@ -41,13 +41,18 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.snackbar.Snackbar
-import com.raywenderlich.wewatch.App
 import com.raywenderlich.wewatch.R
-import com.raywenderlich.wewatch.action
-import com.raywenderlich.wewatch.domain.state.MovieState
-import com.raywenderlich.wewatch.snack
+import com.raywenderlich.wewatch.common.App
+import com.raywenderlich.wewatch.common.ResourceProvider
+import com.raywenderlich.wewatch.common.action
+import com.raywenderlich.wewatch.common.snack
+import com.raywenderlich.wewatch.domain.action.MovieAction
+import com.raywenderlich.wewatch.domain.middleware.SearchMiddleWare
+import com.raywenderlich.wewatch.domain.state.MovieViewState
+import com.raywenderlich.wewatch.domain.store.DefaultStore
 import com.raywenderlich.wewatch.view.adapter.SearchListAdapter
-import com.raywenderlich.wewatch.view.viewmodel.SearchViewModel
+import com.raywenderlich.wewatch.view.reducer.MovieReducer
+import com.raywenderlich.wewatch.view.viewmodel.BaseViewModel
 import com.raywenderlich.wewatch.view.viewmodel.factory.BaseViewModelFactory
 import kotlinx.android.synthetic.main.activity_search_movie.*
 import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
@@ -55,7 +60,7 @@ import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
 class SearchMovieActivity : BaseActivity() {
 
     private val toolbar: Toolbar by lazy { toolbar_toolbar_view as Toolbar }
-    private lateinit var viewModel: SearchViewModel
+    private lateinit var viewModel: BaseViewModel
 
     override fun getToolbarInstance(): Toolbar? = toolbar
 
@@ -64,33 +69,46 @@ class SearchMovieActivity : BaseActivity() {
         setContentView(R.layout.activity_search_movie)
         initViewModel()
         initObservers()
-        displayMoviesIntent()
+        if (savedInstanceState == null) {
+            displayMoviesIntent()
+        }
 
         searchRecyclerView.adapter = SearchListAdapter(emptyList()) {
-            viewModel.addMovieIntent(it)
+            viewModel.onAction(MovieAction.ConfirmAction(it))
         }
     }
 
-    private fun initViewModel(){
-        val factory = BaseViewModelFactory((application as App).getInteractor())
-        viewModel = ViewModelProvider(this, factory).get(SearchViewModel::class.java)
+    private fun initViewModel() {
+        val reducer = MovieReducer(ResourceProvider(applicationContext))
+        val middleWare = SearchMiddleWare((application as App).getRepository())
+        val store = DefaultStore(reducer, middleWare, MovieViewState.EmptyState)
+        val factory = BaseViewModelFactory(store)
+        viewModel = ViewModelProvider(this, factory).get(BaseViewModel::class.java)
+        viewModel.onAttach()
+        viewModel.observeViewState()
     }
 
-    private fun initObservers(){
+    private fun initObservers() {
         viewModel.stateLiveData.observe(this, Observer(::render))
     }
 
-    private fun displayMoviesIntent() =
-        viewModel.displayMoviesIntent(intent.extras.getString("title", ""))
+    override fun onStop() {
+        super.onStop()
+        viewModel.onDetach()
+    }
 
-    override fun render(state: MovieState) {
+    private fun displayMoviesIntent() =
+        viewModel.onAction(MovieAction.SearchMovieAction(intent.extras.getString("title", "")))
+
+    override fun render(state: MovieViewState) {
         Log.d(TAG, "SearchMovieActivity State: ${state.javaClass.simpleName}")
         when (state) {
-            is MovieState.LoadingState -> renderLoadingState()
-            is MovieState.DataState -> renderDataState(state)
-            is MovieState.ErrorState -> renderErrorState(state)
-            is MovieState.ConfirmationState -> renderConfirmationState(state)
-            is MovieState.FinishState -> renderFinishState()
+            is MovieViewState.LoadingState -> renderLoadingState()
+            is MovieViewState.DataState -> renderDataState(state)
+            is MovieViewState.ErrorState -> renderErrorState(state)
+            is MovieViewState.ConfirmationState -> renderConfirmationState(state)
+            is MovieViewState.FinishState -> renderFinishState()
+            is MovieViewState.MessageState -> renderMessageState(state)
         }
     }
 
@@ -99,7 +117,7 @@ class SearchMovieActivity : BaseActivity() {
         searchProgressBar.visibility = View.VISIBLE
     }
 
-    private fun renderDataState(state: MovieState.DataState) {
+    private fun renderDataState(state: MovieViewState.DataState) {
         searchProgressBar.visibility = View.GONE
         searchRecyclerView.apply {
             isEnabled = true
@@ -107,15 +125,15 @@ class SearchMovieActivity : BaseActivity() {
         }
     }
 
-    private fun renderErrorState(state: MovieState.ErrorState) {
+    private fun renderErrorState(state: MovieViewState.ErrorState) {
         searchProgressBar.visibility = View.GONE
         Toast.makeText(this, state.data, Toast.LENGTH_SHORT).show()
     }
 
-    private fun renderConfirmationState(state: MovieState.ConfirmationState) {
+    private fun renderConfirmationState(state: MovieViewState.ConfirmationState) {
         searchLayout.snack("Add ${state.movie.title} to your list?", Snackbar.LENGTH_LONG) {
             action(getString(R.string.ok)) {
-                viewModel.confirmIntent(state.movie)
+                viewModel.onAction(MovieAction.AddMovieAction(state.movie))
             }
         }
     }
@@ -125,7 +143,12 @@ class SearchMovieActivity : BaseActivity() {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         })
 
-    private companion object{
+    private fun renderMessageState(dataState: MovieViewState.MessageState) {
+        Toast.makeText(this, dataState.data, Toast.LENGTH_SHORT).show()
+        finish()
+    }
+
+    private companion object {
         const val TAG = "MVI_Example"
     }
 }

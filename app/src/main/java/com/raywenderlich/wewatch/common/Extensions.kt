@@ -30,7 +30,7 @@
  *
  */
 
-package com.raywenderlich.wewatch
+package com.raywenderlich.wewatch.common
 
 import android.view.View
 import com.google.android.material.snackbar.Snackbar

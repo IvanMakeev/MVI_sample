@@ -19,8 +19,8 @@ class MovieRepository(
     override fun getMovieList(): Observable<List<Movie>> =
         localStorage.getAll()
 
-    override fun addMovie(movie: Movie): Single<Long> =
-        localStorage.insert(movie)
+    override fun addMovie(movie: Movie): Observable<Long> =
+        localStorage.insert(movie).toObservable()
 
     override fun deleteMovie(movie: Movie): Observable<Unit> =
         localStorage.delete(movie).toObservable()

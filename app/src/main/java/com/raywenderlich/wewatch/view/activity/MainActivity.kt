@@ -42,11 +42,16 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
-import com.raywenderlich.wewatch.App
 import com.raywenderlich.wewatch.R
-import com.raywenderlich.wewatch.domain.state.MovieState
+import com.raywenderlich.wewatch.common.App
+import com.raywenderlich.wewatch.common.ResourceProvider
+import com.raywenderlich.wewatch.domain.action.MovieAction
+import com.raywenderlich.wewatch.domain.middleware.MainMiddleWare
+import com.raywenderlich.wewatch.domain.state.MovieViewState
+import com.raywenderlich.wewatch.domain.store.DefaultStore
 import com.raywenderlich.wewatch.view.adapter.MovieListAdapter
-import com.raywenderlich.wewatch.view.viewmodel.MainViewModel
+import com.raywenderlich.wewatch.view.reducer.MovieReducer
+import com.raywenderlich.wewatch.view.viewmodel.BaseViewModel
 import com.raywenderlich.wewatch.view.viewmodel.factory.BaseViewModelFactory
 import kotlinx.android.synthetic.main.activity_main.*
 import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
@@ -54,7 +59,7 @@ import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
 class MainActivity : BaseActivity() {
 
     private val toolbar: Toolbar by lazy { toolbar_toolbar_view as Toolbar }
-    private lateinit var viewModel: MainViewModel
+    private lateinit var viewModel: BaseViewModel
 
     override fun getToolbarInstance(): Toolbar? = toolbar
 
@@ -66,11 +71,19 @@ class MainActivity : BaseActivity() {
         initObservers()
         initClickListeners()
         initItemTouchHelper()
+        if (savedInstanceState == null) {
+            displayMoviesIntent()
+        }
     }
 
     private fun initViewModel() {
-        val factory = BaseViewModelFactory((application as App).getInteractor())
-        viewModel = ViewModelProvider(this, factory).get(MainViewModel::class.java)
+        val reducer = MovieReducer(ResourceProvider(applicationContext))
+        val middleWare = MainMiddleWare((application as App).getRepository())
+        val store = DefaultStore(reducer, middleWare, MovieViewState.LoadingState)
+        val factory = BaseViewModelFactory(store)
+        viewModel = ViewModelProvider(this, factory).get(BaseViewModel::class.java)
+        viewModel.onAttach()
+        viewModel.observeViewState()
     }
 
     private fun initObservers() {
@@ -80,6 +93,10 @@ class MainActivity : BaseActivity() {
     private fun initClickListeners() {
         fab.setOnClickListener { goToAddActivity() }
     }
+
+    private fun displayMoviesIntent() =
+        viewModel.onAction(MovieAction.DisplayMovieAction)
+
 
     private fun goToAddActivity() = startActivity(Intent(this, AddMovieActivity::class.java))
 
@@ -103,18 +120,24 @@ class MainActivity : BaseActivity() {
                         (moviesRecyclerView.adapter as MovieListAdapter).getMoviesAtPosition(
                             position
                         )
-                    viewModel.deleteMovieIntent(movie)
+                    viewModel.onAction(MovieAction.DeleteMovieAction(movie))
                 }
             })
         helper.attachToRecyclerView(moviesRecyclerView)
     }
 
-    override fun render(state: MovieState) {
+    override fun onStop() {
+        super.onStop()
+        viewModel.onDetach()
+    }
+
+    override fun render(state: MovieViewState) {
         Log.d(TAG, "MainActivity State: ${state.javaClass.simpleName}")
         when (state) {
-            is MovieState.LoadingState -> renderLoadingState()
-            is MovieState.DataState -> renderDataState(state)
-            is MovieState.ErrorState -> renderErrorState(state)
+            is MovieViewState.LoadingState -> renderLoadingState()
+            is MovieViewState.DataState -> renderDataState(state)
+            is MovieViewState.ErrorState -> renderErrorState(state)
+            is MovieViewState.MessageState -> renderMessageState(state)
         }
     }
 
@@ -123,7 +146,7 @@ class MainActivity : BaseActivity() {
         progressBar.visibility = View.VISIBLE
     }
 
-    private fun renderDataState(dataState: MovieState.DataState) {
+    private fun renderDataState(dataState: MovieViewState.DataState) {
         progressBar.visibility = View.GONE
         moviesRecyclerView.apply {
             isEnabled = true
@@ -131,10 +154,16 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    private fun renderErrorState(dataState: MovieState.ErrorState) =
-        Toast.makeText(this, dataState.data, Toast.LENGTH_SHORT).show()
+    private fun renderMessageState(dataState: MovieViewState.MessageState) =
+        showToast(dataState.data)
 
-    private companion object{
+    private fun renderErrorState(dataState: MovieViewState.ErrorState) =
+        showToast(dataState.data)
+
+    private fun showToast(message: String) =
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
+    private companion object {
         const val TAG = "MVI_Example"
     }
 }

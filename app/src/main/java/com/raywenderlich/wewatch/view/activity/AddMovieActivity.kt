@@ -39,13 +39,18 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.snackbar.Snackbar
-import com.raywenderlich.wewatch.App
 import com.raywenderlich.wewatch.R
-import com.raywenderlich.wewatch.action
+import com.raywenderlich.wewatch.common.App
+import com.raywenderlich.wewatch.common.ResourceProvider
+import com.raywenderlich.wewatch.common.action
+import com.raywenderlich.wewatch.common.snack
 import com.raywenderlich.wewatch.data.model.Movie
-import com.raywenderlich.wewatch.domain.state.MovieState
-import com.raywenderlich.wewatch.snack
-import com.raywenderlich.wewatch.view.viewmodel.AddViewModel
+import com.raywenderlich.wewatch.domain.action.MovieAction
+import com.raywenderlich.wewatch.domain.middleware.AddMiddleWare
+import com.raywenderlich.wewatch.domain.state.MovieViewState
+import com.raywenderlich.wewatch.domain.store.DefaultStore
+import com.raywenderlich.wewatch.view.reducer.MovieReducer
+import com.raywenderlich.wewatch.view.viewmodel.BaseViewModel
 import com.raywenderlich.wewatch.view.viewmodel.factory.BaseViewModelFactory
 import kotlinx.android.synthetic.main.activity_add_movie.*
 import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
@@ -53,7 +58,7 @@ import kotlinx.android.synthetic.main.toolbar_view_custom_layout.*
 class AddMovieActivity : BaseActivity() {
 
     private val toolbar: Toolbar by lazy { toolbar_toolbar_view as Toolbar }
-    private lateinit var viewModel: AddViewModel
+    private lateinit var viewModel: BaseViewModel
 
     override fun getToolbarInstance() = toolbar
 
@@ -66,8 +71,13 @@ class AddMovieActivity : BaseActivity() {
     }
 
     private fun initViewModel() {
-        val factory = BaseViewModelFactory((application as App).getInteractor())
-        viewModel = ViewModelProvider(this, factory).get(AddViewModel::class.java)
+        val reducer = MovieReducer(ResourceProvider(applicationContext))
+        val middleWare = AddMiddleWare((application as App).getRepository())
+        val store = DefaultStore(reducer, middleWare, MovieViewState.EmptyState)
+        val factory = BaseViewModelFactory(store)
+        viewModel = ViewModelProvider(this, factory).get(BaseViewModel::class.java)
+        viewModel.onAttach()
+        viewModel.observeViewState()
     }
 
     private fun initObservers() {
@@ -79,6 +89,11 @@ class AddMovieActivity : BaseActivity() {
         addMovieButton.setOnClickListener { addMovieClick() }
     }
 
+    override fun onStop() {
+        super.onStop()
+        viewModel.onDetach()
+    }
+
     private fun goToSearchMovieActivity() {
         if (titleEditText.text.toString().isNotBlank()) {
             val intent = Intent(this, SearchMovieActivity::class.java).apply {
@@ -86,28 +101,30 @@ class AddMovieActivity : BaseActivity() {
             }
             startActivity(intent)
         } else {
-            viewModel.showMessageIntent(getString(R.string.error_message))
+            viewModel.onAction(MovieAction.ShowMessageAction(getString(R.string.title_error_message)))
         }
     }
 
     private fun addMovieClick() {
         if (titleEditText.text.toString().isNotBlank()) {
-            viewModel.addMovieIntent(
-                Movie(
-                    title = titleEditText.text.toString(),
-                    releaseDate = yearEditText.text.toString()
+            viewModel.onAction(
+                MovieAction.AddMovieAction(
+                    Movie(
+                        title = titleEditText.text.toString(),
+                        releaseDate = yearEditText.text.toString()
+                    )
                 )
             )
         } else {
-            viewModel.showMessageIntent(getString(R.string.error_message))
+            viewModel.onAction(MovieAction.ShowMessageAction(getString(R.string.title_error_message)))
         }
     }
 
-    override fun render(state: MovieState) {
+    override fun render(state: MovieViewState) {
         Log.d(TAG, "AddMovieActivity State: ${state.javaClass.simpleName}")
         when (state) {
-            is MovieState.FinishState -> renderFinishState()
-            is MovieState.ErrorState -> showMessage(state.data)
+            is MovieViewState.FinishState -> renderFinishState()
+            is MovieViewState.ErrorState -> showMessage(state.data)
         }
     }
 
